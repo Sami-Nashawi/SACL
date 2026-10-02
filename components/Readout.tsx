@@ -1,40 +1,38 @@
 import type { Guidance, Pt } from "@/lib/engine";
 import { mapsLink, toLatLon } from "@/lib/geo";
 
-type Props = {
-  g: Guidance; zone: number; start: Pt; here: Pt; accuracy: number;
-  waiting: boolean; // live mode, no GPS fix yet
-  weakFix: boolean; // live mode, accuracy worse than 5 m
-};
-
-function headline(g: Guidance, waiting: boolean) {
-  if (waiting) return "Waiting for a GPS fix";
-  if (g.mode === "approach") return `Go ${g.cardinal}, ${g.distance.toFixed(0)} m`;
-  if (g.side === "on") return "On the line (within GPS accuracy)";
-  return `Cable on your ${g.side}, ${g.distance.toFixed(1)} m`;
+// The big answer under the arrow: what to do right now.
+export function Headline({ g, waiting, accuracy }: { g: Guidance; waiting: boolean; accuracy: number }) {
+  if (waiting) return <><div className="label">Waiting for a GPS fix</div><p className="sub">Move to open sky and wait a few seconds.</p></>;
+  if (g.mode === "approach") return <><div className="dist">{g.distance.toFixed(0)} m</div><div className="label">Go {g.cardinal}</div></>;
+  if (g.side === "on") return <><div className="dist">On line</div><p className="sub">Within GPS accuracy (±{accuracy.toFixed(0)} m)</p></>;
+  return <><div className="dist">{g.distance.toFixed(1)} m</div><div className="label">Cable on your {g.side}</div></>;
 }
 
-// The answer panel: what to do, where you are along the cable, and map check links.
-export default function Readout({ g, zone, start, here, accuracy, waiting, weakFix }: Props) {
+type Props = { g: Guidance; zone: number; start: Pt; here: Pt; accuracy: number; weakFix: boolean };
+
+// Numbers about your position along the cable, plus warnings and map check links.
+export function Details({ g, zone, start, here, accuracy, weakFix }: Props) {
   const a = toLatLon(zone, start.e, start.n);
   const b = toLatLon(zone, here.e, here.n);
   return (
-    <section className="read" aria-live="polite">
-      <div className={`big ${g.mode === "follow" ? "near" : ""}`}>{headline(g, waiting)}</div>
-      <dl>
-        <dt>Mode</dt><dd>{g.mode === "approach" ? "Approach" : "Follow"}</dd>
-        <dt>Along the cable</dt><dd>{g.chainage.toFixed(0)} m from start, {g.remaining.toFixed(0)} m to end</dd>
-        {g.bend && (<><dt>Next bend</dt>
-          <dd>in {g.bend.dist.toFixed(0)} m, turns {g.bend.turn > 0 ? "right" : "left"} {Math.abs(g.bend.turn).toFixed(0)}°</dd></>)}
-        <dt>GPS accuracy</dt><dd>±{accuracy.toFixed(0)} m</dd>
-        <dt>Check on map</dt>
-        <dd>
-          <a href={mapsLink(a.lat, a.lon)} target="_blank" rel="noreferrer">Cable start</a>{" / "}
-          <a href={mapsLink(b.lat, b.lon)} target="_blank" rel="noreferrer">Current position</a>
-        </dd>
-      </dl>
-      {weakFix && <p className="note">Accuracy is worse than 5 m, so left and right may flicker. Move to open sky and wait for a better fix.</p>}
-      <p className="note">Simulator: drag on the plan to walk. Live GPS uses your walking direction while moving and the compass when standing still. This is guidance only; confirm with an EM cable locator before any excavation.</p>
+    <section className="card details" aria-live="polite">
+      <div className="stats">
+        <div className="stat"><b>{g.chainage.toFixed(0)} m</b><span>From start</span></div>
+        <div className="stat"><b>{g.remaining.toFixed(0)} m</b><span>To end</span></div>
+        <div className="stat"><b>±{accuracy.toFixed(0)} m</b><span>GPS</span></div>
+      </div>
+      {g.bend && (
+        <p className="banner bend">
+          Next bend in {g.bend.dist.toFixed(0)} m: turns {g.bend.turn > 0 ? "right" : "left"} {Math.abs(g.bend.turn).toFixed(0)}°
+        </p>
+      )}
+      {weakFix && <p className="banner warn">Accuracy is worse than 5 m, so left and right may flicker. Move to open sky and wait for a better fix.</p>}
+      <p className="links">
+        Check on map: <a href={mapsLink(a.lat, a.lon)} target="_blank" rel="noreferrer">Cable start</a>
+        {" · "}<a href={mapsLink(b.lat, b.lon)} target="_blank" rel="noreferrer">Current position</a>
+      </p>
+      <p className="note">Guidance only. Confirm with an EM cable locator before any excavation.</p>
     </section>
   );
 }

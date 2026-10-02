@@ -68,6 +68,8 @@ export default function PlanCanvas(props: Props) {
 
   return (
     <canvas ref={ref} width={CANVAS_W} height={CANVAS_H} onPointerDown={onPointer} onPointerMove={onPointer}
+      // Only block page scrolling when dragging moves the simulated dot; in live mode the plan must not trap your thumb.
+      style={{ touchAction: props.interactive ? "none" : "auto" }}
       aria-label="Cable plan. In simulator mode, drag to move your position." />
   );
 }

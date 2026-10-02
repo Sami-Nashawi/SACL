@@ -4,11 +4,12 @@ import { guide, type Line, type Pt } from "@/lib/engine";
 import { parseDxf } from "@/lib/dxf";
 import { useGps } from "@/lib/gps";
 import { useCompass } from "@/lib/compass";
+import { useWakeLock } from "@/lib/wakelock";
 import { chooseFacing } from "@/lib/facing";
 import { DEMO_LINE, DEMO_START_POSITION } from "@/lib/demo";
-import Controls from "@/components/Controls";
+import Controls, { ModeSwitch } from "@/components/Controls";
 import PlanCanvas from "@/components/PlanCanvas";
-import Readout from "@/components/Readout";
+import { Details, Headline } from "@/components/Readout";
 import CompassArrow from "@/components/CompassArrow";
 
 const Alert = ({ text }: { text: string }) => <p role="alert" className="alert">{text}</p>;
@@ -29,6 +30,7 @@ export default function Page() {
   const hasFix = live && gps.pos !== null;
   const position = hasFix ? gps.pos! : simPos;
   const accuracy = hasFix ? gps.accuracy : simAccuracy;
+  useWakeLock(live);
 
   // Which way you face: walking direction while moving, compass when standing still.
   const compass = useCompass(live);
@@ -36,6 +38,10 @@ export default function Page() {
 
   const line = lines[cableIndex];
   const g = guide(line, position, { forward, accuracy, heading: facing });
+  const waiting = live && !hasFix;
+
+  // One colour for the whole hero card: blue while approaching, green when close or on the line, grey while waiting.
+  const state = waiting ? "wait" : g.mode === "approach" ? "far" : g.side === "on" ? "on" : "near";
 
   const selectCable = (i: number) => { setCableIndex(i); setSimPos(lines[i].pts[0]); };
 
@@ -51,18 +57,31 @@ export default function Page() {
   };
 
   return (
-    <main>
-      <h1>Cable Locator</h1>
-      <Controls cableNames={lines.map((l) => l.name)} cableIndex={cableIndex} onCable={selectCable}
-        onFile={loadFile} zone={zone} onZone={setZone} forward={forward} onForward={setForward}
-        live={live} onLive={setLive} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy} />
-      {fileError && <Alert text={fileError} />}
-      {live && gps.error && <Alert text={gps.error} />}
-      <PlanCanvas line={line} position={position} nearest={g.nearest} accuracy={accuracy}
-        followPosition={hasFix} interactive={!live} onMove={setSimPos} />
-      <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />
-      <Readout g={g} zone={zone} start={line.pts[0]} here={position} accuracy={accuracy}
-        waiting={live && !hasFix} weakFix={hasFix && accuracy > 5} />
-    </main>
+    <>
+      <header className="app">
+        <span className="brand">Cable Locator</span>
+        <ModeSwitch live={live} onLive={setLive} />
+      </header>
+      <main>
+        <div className="alerts">
+          {fileError && <Alert text={fileError} />}
+          {live && gps.error && <Alert text={gps.error} />}
+        </div>
+        <Controls cableNames={lines.map((l) => l.name)} cableIndex={cableIndex} onCable={selectCable}
+          onFile={loadFile} zone={zone} onZone={setZone} forward={forward} onForward={setForward}
+          live={live} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
+          openSetup={lines.length === 1 && lines[0] === DEMO_LINE} />
+        <section className={`card hero s-${state}`} aria-live="polite">
+          <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />
+          <Headline g={g} waiting={waiting} accuracy={accuracy} />
+        </section>
+        <section className="card plan">
+          <PlanCanvas line={line} position={position} nearest={g.nearest} accuracy={accuracy}
+            followPosition={hasFix} interactive={!live} onMove={setSimPos} />
+          {!live && <p className="note">Simulator: drag on the plan to walk.</p>}
+        </section>
+        <Details g={g} zone={zone} start={line.pts[0]} here={position} accuracy={accuracy} weakFix={hasFix && accuracy > 5} />
+      </main>
+    </>
   );
 }

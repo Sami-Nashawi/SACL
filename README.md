@@ -8,6 +8,9 @@ npm install
 npm run dev      # https://localhost:3000 (HTTPS is needed later for phone GPS and compass)
 ```
 
+## On the phone
+The layout is one column on a phone (cable picker, arrow and answer, plan, numbers) and two columns on a wide screen. Controls are 48 px tall, the screen stays awake while Live GPS is on, and light/dark follows the phone. Open the site over HTTPS in Safari and use Share > Add to Home Screen to run it full screen.
+
 ## Prepare the DXF
 Model space only. One polyline per cable, each on its own layer (layer name becomes the cable name). Real Easting/Northing coordinates in metres, saved as ASCII DXF (AutoCAD 2018). Use PASTEORIG when copying cables into a clean drawing.
 
@@ -25,4 +28,6 @@ Model space only. One polyline per cable, each on its own layer (layer name beco
 - `lib/facing.ts` picks walking direction or compass
 - `lib/angle.ts` degree helpers
 - `lib/gps.ts` live GPS hook: accuracy-weighted smoothing, walking direction from movement
+- `lib/wakelock.ts` keeps the screen on during Live GPS
+- `app/manifest.ts`, `app/icon.svg` Add to Home Screen support
 - `lib/demo.ts` demo cable

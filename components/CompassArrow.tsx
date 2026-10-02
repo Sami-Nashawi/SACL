@@ -13,30 +13,28 @@ type Props = {
 
 // An arrow that points at the cable relative to the way you face: straight up means "straight ahead".
 // With no facing direction it falls back to a map view where up is north.
+// The arrow takes its colour from the --state variable set by the hero card around it.
 export default function CompassArrow({ bearing, facing, source, status, onEnable }: Props) {
   const rotation = facing === undefined ? bearing : wrap360(bearing - facing);
   const caption =
     facing === undefined ? "North is up. Walk a few metres or enable the compass to point relative to you."
-    : source === "compass" ? "Up is the way the phone is facing (compass). Hold it flat."
+    : source === "compass" ? "Up is the way the phone is facing. Hold it flat."
     : "Up is your walking direction.";
   return (
-    <section className="compass">
+    <div className="compass">
       <svg viewBox="-50 -50 100 100" className="arrow" role="img"
         aria-label={`Cable is ${Math.round(rotation)} degrees clockwise from straight ahead`}>
-        <circle r="46" fill="none" stroke="var(--edge)" strokeWidth="2" />
-        <path d="M0 -50 L0 -43" stroke="var(--ink)" strokeWidth="3" />
+        <circle r="46" fill="var(--bg)" stroke="var(--edge)" strokeWidth="2" />
+        <path d="M0 -49 L0 -41" stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" />
         <g style={{ transform: `rotate(${rotation}deg)`, transition: "transform .2s" }}>
-          <path d="M0 -36 L15 14 L0 5 L-15 14 Z" fill="var(--you)" />
+          <path d="M0 -34 L16 16 L0 6 L-16 16 Z" fill="var(--state)" stroke="var(--card)" strokeWidth="1.5" strokeLinejoin="round" />
         </g>
       </svg>
-      <div>
-        <strong>Arrow to the nearest point on the cable</strong>
-        <p className="note">{caption}</p>
-        {status === "needs-permission" && <button onClick={onEnable}>Enable compass</button>}
-        {status === "denied" && <p className="note">Compass blocked. Allow motion access for this site in your browser settings.</p>}
-        {status === "unsupported" && <p className="note">This device has no compass. The arrow uses your walking direction.</p>}
-        {status === "on" && <p className="note">Compass can be wrong near steel, vehicles and bridges.</p>}
-      </div>
-    </section>
+      <p className="note">{caption}</p>
+      {status === "needs-permission" && <button className="btn primary" onClick={onEnable}>Enable compass</button>}
+      {status === "denied" && <p className="note">Compass blocked. Allow motion access for this site in your browser settings.</p>}
+      {status === "unsupported" && <p className="note">This device has no compass. The arrow uses your walking direction.</p>}
+      {status === "on" && <p className="note">Compass can be wrong near steel, vehicles and bridges.</p>}
+    </div>
   );
 }
