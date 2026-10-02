@@ -16,3 +16,7 @@ dt { color:var(--muted); } dd { margin:0; font-weight:600; }
 a { color:var(--you); }
 .note { color:var(--muted); font-size:.85rem; }
 :focus-visible { outline:2px solid var(--you); outline-offset:2px; }
+.alert { color:#b42318; margin:0; }
+.compass { display:flex; gap:16px; align-items:center; background:var(--card); border:1px solid var(--edge); border-radius:8px; padding:16px; }
+.compass p { margin:4px 0 8px; }
+.arrow { width:96px; height:96px; flex:none; }

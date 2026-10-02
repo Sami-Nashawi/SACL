@@ -8,3 +8,8 @@ export function toLatLon(zone: number, e: number, n: number) {
 }
 export const mapsLink = (lat: number, lon: number) =>
   `https://www.google.com/maps?q=${lat.toFixed(7)},${lon.toFixed(7)}`;
+
+export function fromLatLon(zone: number, lat: number, lon: number) {
+  const [e, n] = proj4("WGS84", utm(zone), [lon, lat]);
+  return { e, n };
+}
