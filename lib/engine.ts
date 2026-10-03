@@ -14,6 +14,9 @@ export type Guidance = {
   remaining: number;
   nearest: Pt;
   bend: { dist: number; turn: number } | null; // turn > 0 means a right turn
+  lateral: number; // metres across the cable line; positive = the cable is on your right (needs no compass)
+  beyond: "start" | "end" | null; // you are past the start or the end of the cable, not alongside it
+  lineBearing: number; // direction of the cable at the nearest point, in your walking order
 };
 type Options = {
   forward?: boolean; // walk start to end (true) or end to start (false)
@@ -36,18 +39,19 @@ function cumulativeLengths(pts: Pt[]): number[] {
   return cum;
 }
 
-type Hit = { dist: number; seg: number; t: number; point: Pt };
+type Hit = { dist: number; seg: number; t: number; raw: number; point: Pt };
 
 // Closest point on the cable to p. t is how far along that segment it is (0 = start, 1 = end).
 function nearestOnLine(pts: Pt[], p: Pt): Hit {
-  let best: Hit = { dist: Infinity, seg: 0, t: 0, point: pts[0] };
+  let best: Hit = { dist: Infinity, seg: 0, t: 0, raw: 0, point: pts[0] };
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1];
     const de = b.e - a.e, dn = b.n - a.n, len2 = de * de + dn * dn;
-    const t = len2 ? clamp(((p.e - a.e) * de + (p.n - a.n) * dn) / len2, 0, 1) : 0;
+    const raw = len2 ? ((p.e - a.e) * de + (p.n - a.n) * dn) / len2 : 0; // unclamped: below 0 or above 1 means off the end
+    const t = clamp(raw, 0, 1);
     const point = { e: a.e + t * de, n: a.n + t * dn };
     const dist = distance(p, point);
-    if (dist < best.dist) best = { dist, seg: i, t, point };
+    if (dist < best.dist) best = { dist, seg: i, t, raw, point };
   }
   return best;
 }
@@ -80,7 +84,15 @@ export function guide(line: Line, you: Pt, o: Options = {}): Guidance {
   const chainage = cum[hit.seg] + hit.t * (cum[hit.seg + 1] - cum[hit.seg]);
   const length = cum[cum.length - 1];
 
+  // Sideways offset from the cable's own line. Rotating the cable direction a quarter turn clockwise gives
+  // "your right"; the dot product with the vector from you to the line is the signed distance.
+  const a = pts[hit.seg], b = pts[hit.seg + 1];
+  const len = distance(a, b) || 1;
+  const lateral = (a.e - you.e) * ((b.n - a.n) / len) - (a.n - you.n) * ((b.e - a.e) / len);
+  const beyond = hit.seg === 0 && hit.raw < 0 ? "start" : hit.seg === pts.length - 2 && hit.raw > 1 ? "end" : null;
+
   return {
+    lateral, beyond, lineBearing: lineDirection,
     mode: hit.dist > nearM ? "approach" : "follow",
     distance: hit.dist,
     bearing: toward,

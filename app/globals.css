@@ -78,7 +78,26 @@ details[open] summary::after { content:"–"; }
 .links a { display:inline-block; padding:6px 0; }
 
 .plan { display:grid; gap:8px; padding:8px; }
-canvas { width:100%; height:auto; background:#fbfbf9; border-radius:12px; cursor:crosshair; display:block; }
+
 .alert { margin:0; padding:10px 12px; border:1px solid var(--bad); border-radius:12px; color:var(--bad); font-weight:600; background:var(--card); }
 
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+
+/* guidance modes, lane view, map */
+.s-warn { --state:var(--warn); } .s-bad { --state:var(--bad); }
+.modetag { font-size:.75rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--state); }
+.lane { width:min(100%, 340px); height:auto; }
+.seg.wide { display:flex; } .seg.wide button { flex:1; min-height:44px; }
+.planbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 4px 0; }
+.mapwrap { position:relative; }
+.map { height:min(58vh, 460px); border-radius:12px; background:#cfd6d2; z-index:0; }
+.fit { position:absolute; left:8px; bottom:24px; z-index:1000; min-height:40px; padding:0 12px; box-shadow:0 1px 4px rgba(0,0,0,.35); }
+
+/* map (Leaflet) and Follow-mode lane view */
+.mapwrap { position:relative; }
+.map { height:52vh; min-height:280px; border-radius:12px; position:relative; z-index:0; isolation:isolate; background:#dfe3dc; }
+@media (min-width:860px) { .map { height:520px; } }
+.recenter { position:absolute; left:10px; bottom:10px; z-index:500; min-height:40px; padding:0 14px; width:auto; }
+.lane { width:min(92vw, 360px); height:auto; }
+.modetag { margin:0; font-size:.75rem; font-weight:800; letter-spacing:.14em; color:var(--state); }
+.leaflet-tooltip { font-weight:700; }

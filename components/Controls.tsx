@@ -13,12 +13,27 @@ export function ModeSwitch({ live, onLive }: ModeProps) {
   );
 }
 
+export type GuideMode = "auto" | "find" | "follow";
+
+// Auto switches by distance (Follow when close, Find when far); the other two force a mode.
+export function GuideSwitch({ value, onChange }: { value: GuideMode; onChange: (m: GuideMode) => void }) {
+  const names: Record<GuideMode, string> = { auto: "Auto", find: "Find", follow: "Follow" };
+  return (
+    <div className="seg wide" role="group" aria-label="Guidance mode">
+      {(Object.keys(names) as GuideMode[]).map((m) => (
+        <button key={m} aria-pressed={value === m} onClick={() => onChange(m)}>{names[m]}</button>
+      ))}
+    </div>
+  );
+}
+
 type Props = {
   cableNames: string[]; cableIndex: number; onCable: (i: number) => void;
   onFile: (f?: File) => void;
   zone: number; onZone: (z: number) => void;
   forward: boolean; onForward: (f: boolean) => void;
   live: boolean; simAccuracy: number; onSimAccuracy: (a: number) => void;
+  guide: GuideMode; onGuide: (m: GuideMode) => void;
   openSetup: boolean; // true until a real DXF is loaded, so first-time users see the upload button
 };
 
@@ -30,6 +45,7 @@ export default function Controls(p: Props) {
           {p.cableNames.map((name, i) => <option key={i} value={i}>{name}</option>)}
         </select>
       </label>
+      <GuideSwitch value={p.guide} onChange={p.onGuide} />
       <details className="card setup" open={p.openSetup}>
         <summary>DXF file and settings</summary>
         <div className="fields">

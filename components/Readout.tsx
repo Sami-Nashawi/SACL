@@ -1,12 +1,16 @@
 import type { Guidance, Pt } from "@/lib/engine";
 import { mapsLink, toLatLon } from "@/lib/geo";
 
-// The big answer under the arrow: what to do right now.
-export function Headline({ g, waiting, accuracy }: { g: Guidance; waiting: boolean; accuracy: number }) {
+const fmt = (m: number) => (m < 10 ? m.toFixed(1) : m.toFixed(0));
+
+// The big answer under the arrow or lane view: what to do right now.
+// Follow mode says which way to step and how far; Find mode says which way to head and how far.
+export function Headline({ g, waiting, accuracy, follow }: { g: Guidance; waiting: boolean; accuracy: number; follow: boolean }) {
   if (waiting) return <><div className="label">Waiting for a GPS fix</div><p className="sub">Move to open sky and wait a few seconds.</p></>;
-  if (g.mode === "approach") return <><div className="dist">{g.distance.toFixed(0)} m</div><div className="label">Go {g.cardinal}</div></>;
+  if (!follow) return <><div className="dist">{g.distance.toFixed(0)} m</div><div className="label">Go {g.cardinal}</div></>;
+  if (g.beyond) return <><div className="label">Past the {g.beyond} of the cable</div><p className="sub">{fmt(g.distance)} m from the cable {g.beyond}.</p></>;
   if (g.side === "on") return <><div className="dist">On line</div><p className="sub">Within GPS accuracy (±{accuracy.toFixed(0)} m)</p></>;
-  return <><div className="dist">{g.distance.toFixed(1)} m</div><div className="label">Cable on your {g.side}</div></>;
+  return <><div className="dist">{g.side === "left" ? "◀" : ""} {fmt(g.distance)} m {g.side === "right" ? "▶" : ""}</div><div className="label">Move {g.side}</div></>;
 }
 
 type Props = { g: Guidance; zone: number; start: Pt; here: Pt; accuracy: number; weakFix: boolean };

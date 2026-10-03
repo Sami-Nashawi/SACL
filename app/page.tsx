@@ -1,18 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { guide, type Line, type Pt } from "@/lib/engine";
 import { parseDxf } from "@/lib/dxf";
 import { useGps } from "@/lib/gps";
 import { useCompass } from "@/lib/compass";
 import { useWakeLock } from "@/lib/wakelock";
 import { chooseFacing } from "@/lib/facing";
+import { shortestDiff } from "@/lib/angle";
 import { DEMO_LINE, DEMO_START_POSITION } from "@/lib/demo";
-import Controls, { ModeSwitch } from "@/components/Controls";
-import PlanCanvas from "@/components/PlanCanvas";
+import Controls, { ModeSwitch, type GuideMode } from "@/components/Controls";
+import MapView from "@/components/MapView";
+import LaneView from "@/components/LaneView";
 import { Details, Headline } from "@/components/Readout";
 import CompassArrow from "@/components/CompassArrow";
 
 const Alert = ({ text }: { text: string }) => <p role="alert" className="alert">{text}</p>;
+
+// Follow mode starts closer than it ends, so the screen does not flip back and forth at the border.
+const ENTER_FOLLOW_M = 10;
+const LEAVE_FOLLOW_M = 15;
 
 // The page owns all state and wires the pieces together. Nothing else keeps state.
 export default function Page() {
@@ -21,6 +27,8 @@ export default function Page() {
   const [zone, setZone] = useState(40);
   const [forward, setForward] = useState(true);
   const [live, setLive] = useState(false);
+  const [guideMode, setGuideMode] = useState<GuideMode>("auto");
+  const [nearCable, setNearCable] = useState(false);
   const [simPos, setSimPos] = useState<Pt>(DEMO_START_POSITION);
   const [simAccuracy, setSimAccuracy] = useState(3);
   const [fileError, setFileError] = useState("");
@@ -32,16 +40,32 @@ export default function Page() {
   const accuracy = hasFix ? gps.accuracy : simAccuracy;
   useWakeLock(live);
 
-  // Which way you face: walking direction while moving, compass when standing still.
+  // The compass is only for Find mode. Follow mode never uses it.
   const compass = useCompass(live);
   const { facing, source } = hasFix ? chooseFacing(gps, compass.heading) : { facing: undefined, source: "none" as const };
 
   const line = lines[cableIndex];
-  const g = guide(line, position, { forward, accuracy, heading: facing });
+
+  // Find or Follow: automatic by distance (with a gap between the two thresholds), unless you pick one.
+  const distance = guide(line, position, { forward }).distance;
+  useEffect(() => {
+    if (!nearCable && distance < ENTER_FOLLOW_M) setNearCable(true);
+    else if (nearCable && distance > LEAVE_FOLLOW_M) setNearCable(false);
+  }, [distance, nearCable]);
+  const follow = guideMode === "follow" || (guideMode === "auto" && nearCable);
+
+  // Follow: left/right comes from the cable's own direction, so no facing is passed in. Find: use the way you face.
+  const g = guide(line, position, { forward, accuracy, heading: follow ? undefined : facing });
   const waiting = live && !hasFix;
 
-  // One colour for the whole hero card: blue while approaching, green when close or on the line, grey while waiting.
-  const state = waiting ? "wait" : g.mode === "approach" ? "far" : g.side === "on" ? "on" : "near";
+  // Walking the other way along the cable? GPS movement tells us, and left/right flips by itself.
+  useEffect(() => {
+    if (!live || !follow || !gps.moving || gps.heading === undefined) return;
+    if (Math.abs(shortestDiff(gps.heading, g.lineBearing)) > 120) setForward((f) => !f);
+  }, [gps.heading, gps.moving]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One colour for the hero card: blue while finding, green when following, grey while waiting.
+  const state = waiting ? "wait" : !follow ? "far" : g.side === "on" ? "on" : "near";
 
   const selectCable = (i: number) => { setCableIndex(i); setSimPos(lines[i].pts[0]); };
 
@@ -69,16 +93,20 @@ export default function Page() {
         </div>
         <Controls cableNames={lines.map((l) => l.name)} cableIndex={cableIndex} onCable={selectCable}
           onFile={loadFile} zone={zone} onZone={setZone} forward={forward} onForward={setForward}
-          live={live} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
+          guide={guideMode} onGuide={setGuideMode} live={live} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
           openSetup={lines.length === 1 && lines[0] === DEMO_LINE} />
         <section className={`card hero s-${state}`} aria-live="polite">
-          <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />
-          <Headline g={g} waiting={waiting} accuracy={accuracy} />
+          <p className="modetag">{follow ? "FOLLOW" : "FIND"}</p>
+          {follow
+            ? <LaneView side={g.side} distance={g.distance} accuracy={accuracy} />
+            : <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />}
+          <Headline g={g} waiting={waiting} accuracy={accuracy} follow={follow} />
+          {follow && <p className="note">Walking {forward ? "start to end" : "end to start"}. Flips by itself if you turn around.</p>}
         </section>
         <section className="card plan">
-          <PlanCanvas line={line} position={position} nearest={g.nearest} accuracy={accuracy}
-            followPosition={hasFix} interactive={!live} onMove={setSimPos} />
-          {!live && <p className="note">Simulator: drag on the plan to walk.</p>}
+          <MapView line={line} zone={zone} position={position} nearest={g.nearest} accuracy={accuracy}
+            interactive={!live} onPick={setSimPos} />
+          {!live && <p className="note">Simulator: tap the map to move your position.</p>}
         </section>
         <Details g={g} zone={zone} start={line.pts[0]} here={position} accuracy={accuracy} weakFix={hasFix && accuracy > 5} />
       </main>
