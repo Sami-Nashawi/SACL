@@ -8,7 +8,7 @@ import { useWakeLock } from "@/lib/wakelock";
 import { chooseFacing } from "@/lib/facing";
 import { shortestDiff } from "@/lib/angle";
 import { DEMO_LINE, DEMO_START_POSITION } from "@/lib/demo";
-import Controls, { ModeSwitch, type GuideMode } from "@/components/Controls";
+import Controls from "@/components/Controls";
 import MapView from "@/components/MapView";
 import LaneView from "@/components/LaneView";
 import { Details, Headline } from "@/components/Readout";
@@ -26,8 +26,7 @@ export default function Page() {
   const [cableIndex, setCableIndex] = useState(0);
   const [zone, setZone] = useState(40);
   const [forward, setForward] = useState(true);
-  const [live, setLive] = useState(false);
-  const [guideMode, setGuideMode] = useState<GuideMode>("auto");
+  const [live, setLive] = useState(true); // Live GPS is the normal mode; Test mode is in the settings
   const [nearCable, setNearCable] = useState(false);
   const [simPos, setSimPos] = useState<Pt>(DEMO_START_POSITION);
   const [simAccuracy, setSimAccuracy] = useState(3);
@@ -46,13 +45,13 @@ export default function Page() {
 
   const line = lines[cableIndex];
 
-  // Find or Follow: automatic by distance (with a gap between the two thresholds), unless you pick one.
+  // Find or Follow: automatic by distance, with a gap between the two thresholds.
   const distance = guide(line, position, { forward }).distance;
   useEffect(() => {
     if (!nearCable && distance < ENTER_FOLLOW_M) setNearCable(true);
     else if (nearCable && distance > LEAVE_FOLLOW_M) setNearCable(false);
   }, [distance, nearCable]);
-  const follow = guideMode === "follow" || (guideMode === "auto" && nearCable);
+  const follow = nearCable; // automatic: Follow when on the cable, Find when far away
 
   // Follow: left/right comes from the cable's own direction, so no facing is passed in. Find: use the way you face.
   const g = guide(line, position, { forward, accuracy, heading: follow ? undefined : facing });
@@ -84,7 +83,7 @@ export default function Page() {
     <>
       <header className="app">
         <span className="brand">Cable Locator</span>
-        <ModeSwitch live={live} onLive={setLive} />
+        <span className={`pill ${live && (waiting || accuracy > 5) ? "warn" : ""}`}>{!live ? "Test mode" : waiting ? "Waiting for GPS" : `GPS ±${accuracy.toFixed(0)} m`}</span>
       </header>
       <main>
         <div className="alerts">
@@ -93,7 +92,7 @@ export default function Page() {
         </div>
         <Controls cableNames={lines.map((l) => l.name)} cableIndex={cableIndex} onCable={selectCable}
           onFile={loadFile} zone={zone} onZone={setZone} forward={forward} onForward={setForward}
-          guide={guideMode} onGuide={setGuideMode} live={live} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
+          live={live} onLive={setLive} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
           openSetup={lines.length === 1 && lines[0] === DEMO_LINE} />
         <section className={`card hero s-${state}`} aria-live="polite">
           <p className="modetag">{follow ? "FOLLOW" : "FIND"}</p>

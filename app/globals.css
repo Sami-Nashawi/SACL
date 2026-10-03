@@ -101,3 +101,6 @@ details[open] summary::after { content:"–"; }
 .lane { width:min(92vw, 360px); height:auto; }
 .modetag { margin:0; font-size:.75rem; font-weight:800; letter-spacing:.14em; color:var(--state); }
 .leaflet-tooltip { font-weight:700; }
+
+.pill { font-size:.85rem; font-weight:700; padding:6px 12px; border-radius:999px; background:var(--edge); }
+.pill.warn { background:color-mix(in srgb, var(--warn) 20%, var(--card)); color:var(--warn); }

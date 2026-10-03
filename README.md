@@ -10,7 +10,7 @@ npm run dev      # https://localhost:3000 (HTTPS is needed later for phone GPS a
 
 ## Two modes
 - **Find** (far from the cable): arrow and distance, using walking direction or the compass, on a satellite or street map.
-- **Follow** (within 10 m, back to Find beyond 15 m): the cable is a line and you are a dot. It says how far to move left or right using the cable's own direction, with no compass. It flips left/right by itself if GPS shows you walking the other way. Use the View setting to force one mode.
+- **Follow** (within 10 m, back to Find beyond 15 m): the cable is a line and you are a dot. It says how far to move left or right using the cable's own direction, with no compass. It flips left/right by itself if GPS shows you walking the other way. The switch is automatic, with no buttons. Test mode (no GPS, tap the map to move) is in the settings panel.
 
 ## On the phone
 The layout is one column on a phone (cable picker, arrow and answer, plan, numbers) and two columns on a wide screen. Controls are 48 px tall, the screen stays awake while Live GPS is on, and light/dark follows the phone. Open the site over HTTPS in Safari and use Share > Add to Home Screen to run it full screen.
