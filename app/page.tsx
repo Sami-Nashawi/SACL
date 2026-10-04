@@ -1,113 +1,81 @@
 "use client";
-import { useEffect, useState } from "react";
-import { guide, type Line, type Pt } from "@/lib/engine";
-import { parseDxf } from "@/lib/dxf";
-import { useGps } from "@/lib/gps";
-import { useCompass } from "@/lib/compass";
-import { useWakeLock } from "@/lib/wakelock";
-import { chooseFacing } from "@/lib/facing";
-import { shortestDiff } from "@/lib/angle";
-import { DEMO_LINE, DEMO_START_POSITION } from "@/lib/demo";
-import Controls from "@/components/Controls";
-import MapView from "@/components/MapView";
-import LaneView from "@/components/LaneView";
-import { Details, Headline } from "@/components/Readout";
-import CompassArrow from "@/components/CompassArrow";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { fetchList, isSaved } from "@/lib/cables-client";
+import { fromLatLon } from "@/lib/geo";
+import type { CableSummary } from "@/lib/cable-types";
 
-const Alert = ({ text }: { text: string }) => <p role="alert" className="alert">{text}</p>;
+// Start screen: pick a cable. You can search by name, or sort by the nearest cable to where you stand.
+export default function Home() {
+  const [cables, setCables] = useState<CableSummary[] | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [role, setRole] = useState<string | null>(null);
+  const [me, setMe] = useState<{ lat: number; lon: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [gpsError, setGpsError] = useState("");
 
-// Follow mode starts closer than it ends, so the screen does not flip back and forth at the border.
-const ENTER_FOLLOW_M = 10;
-const LEAVE_FOLLOW_M = 15;
-
-// The page owns all state and wires the pieces together. Nothing else keeps state.
-export default function Page() {
-  const [lines, setLines] = useState<Line[]>([DEMO_LINE]);
-  const [cableIndex, setCableIndex] = useState(0);
-  const [zone, setZone] = useState(40);
-  const [forward, setForward] = useState(true);
-  const [live, setLive] = useState(true); // Live GPS is the normal mode; Test mode is in the settings
-  const [nearCable, setNearCable] = useState(false);
-  const [simPos, setSimPos] = useState<Pt>(DEMO_START_POSITION);
-  const [simAccuracy, setSimAccuracy] = useState(3);
-  const [fileError, setFileError] = useState("");
-
-  // Where "you" are: the live GPS fix if we have one, otherwise the simulated dot.
-  const gps = useGps(zone, live);
-  const hasFix = live && gps.pos !== null;
-  const position = hasFix ? gps.pos! : simPos;
-  const accuracy = hasFix ? gps.accuracy : simAccuracy;
-  useWakeLock(live);
-
-  // The compass is only for Find mode. Follow mode never uses it.
-  const compass = useCompass(live);
-  const { facing, source } = hasFix ? chooseFacing(gps, compass.heading) : { facing: undefined, source: "none" as const };
-
-  const line = lines[cableIndex];
-
-  // Find or Follow: automatic by distance, with a gap between the two thresholds.
-  const distance = guide(line, position, { forward }).distance;
   useEffect(() => {
-    if (!nearCable && distance < ENTER_FOLLOW_M) setNearCable(true);
-    else if (nearCable && distance > LEAVE_FOLLOW_M) setNearCable(false);
-  }, [distance, nearCable]);
-  const follow = nearCable; // automatic: Follow when on the cable, Find when far away
+    fetchList().then((r) => { setCables(r.cables); setOffline(r.offline); }).catch((e: Error) => setError(e.message));
+    fetch("/api/login").then((r) => r.json()).then((j: { role: string | null }) => setRole(j.role)).catch(() => {});
+  }, []);
 
-  // Follow: left/right comes from the cable's own direction, so no facing is passed in. Find: use the way you face.
-  const g = guide(line, position, { forward, accuracy, heading: follow ? undefined : facing });
-  const waiting = live && !hasFix;
-
-  // Walking the other way along the cable? GPS movement tells us, and left/right flips by itself.
-  useEffect(() => {
-    if (!live || !follow || !gps.moving || gps.heading === undefined) return;
-    if (Math.abs(shortestDiff(gps.heading, g.lineBearing)) > 120) setForward((f) => !f);
-  }, [gps.heading, gps.moving]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // One colour for the hero card: blue while finding, green when following, grey while waiting.
-  const state = waiting ? "wait" : !follow ? "far" : g.side === "on" ? "on" : "near";
-
-  const selectCable = (i: number) => { setCableIndex(i); setSimPos(lines[i].pts[0]); };
-
-  const loadFile = async (file?: File) => {
-    if (!file) return;
-    try {
-      const found = parseDxf(await file.text());
-      if (!found.length) return setFileError("No polylines found. Export each cable as a polyline on its own layer.");
-      setFileError(""); setLines(found); setCableIndex(0); setSimPos(found[0].pts[0]);
-    } catch {
-      setFileError("Could not read this DXF. Save it as ASCII DXF (AutoCAD 2018) and try again.");
-    }
+  const nearest = () => {
+    setLocating(true); setGpsError("");
+    navigator.geolocation.getCurrentPosition(
+      (p) => { setMe({ lat: p.coords.latitude, lon: p.coords.longitude }); setLocating(false); },
+      () => { setGpsError("Could not get your location. Allow location access for this site."); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
   };
+
+  // Distance from you to the cable's bounding box: quick and good enough to sort the list.
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = (cables ?? []).filter((c) => !q || `${c.name} ${c.project}`.toLowerCase().includes(q))
+      .map((c) => {
+        if (!me) return { c, away: null as number | null };
+        const p = fromLatLon(c.zone, me.lat, me.lon);
+        const dx = Math.max(c.minE - p.e, 0, p.e - c.maxE), dy = Math.max(c.minN - p.n, 0, p.n - c.maxN);
+        return { c, away: Math.hypot(dx, dy) };
+      });
+    return me ? list.sort((a, b) => a.away! - b.away!) : list;
+  }, [cables, query, me]);
+
+  const fmt = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
   return (
     <>
       <header className="app">
         <span className="brand">Cable Locator</span>
-        <span className={`pill ${live && (waiting || accuracy > 5) ? "warn" : ""}`}>{!live ? "Test mode" : waiting ? "Waiting for GPS" : `GPS ±${accuracy.toFixed(0)} m`}</span>
+        <span className="actions">
+          {role === "admin" && <Link className="btn sm" href="/admin">Manage</Link>}
+          <button className="btn sm" onClick={async () => { await fetch("/api/login", { method: "DELETE" }); location.href = "/login"; }}>Sign out</button>
+        </span>
       </header>
       <main>
-        <div className="alerts">
-          {fileError && <Alert text={fileError} />}
-          {live && gps.error && <Alert text={gps.error} />}
-        </div>
-        <Controls cableNames={lines.map((l) => l.name)} cableIndex={cableIndex} onCable={selectCable}
-          onFile={loadFile} zone={zone} onZone={setZone} forward={forward} onForward={setForward}
-          live={live} onLive={setLive} simAccuracy={simAccuracy} onSimAccuracy={setSimAccuracy}
-          openSetup={lines.length === 1 && lines[0] === DEMO_LINE} />
-        <section className={`card hero s-${state}`} aria-live="polite">
-          <p className="modetag">{follow ? "FOLLOW" : "FIND"}</p>
-          {follow
-            ? <LaneView side={g.side} distance={g.distance} accuracy={accuracy} />
-            : <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />}
-          <Headline g={g} waiting={waiting} accuracy={accuracy} follow={follow} />
-          {follow && <p className="note">Walking {forward ? "start to end" : "end to start"}. Flips by itself if you turn around.</p>}
+        <section className="ctl">
+          <input type="search" placeholder="Search cables" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search cables" />
+          <button className="btn" onClick={nearest} disabled={locating}>{locating ? "Finding you…" : me ? "Sorted by nearest. Refresh" : "Nearest to me"}</button>
+          {gpsError && <p role="alert" className="alert">{gpsError}</p>}
+          {offline && <p className="banner warn">No connection. Showing the cables saved on this device.</p>}
+          {error && <p role="alert" className="alert">{error}</p>}
         </section>
-        <section className="card plan">
-          <MapView line={line} zone={zone} position={position} nearest={g.nearest} accuracy={accuracy}
-            interactive={!live} onPick={setSimPos} />
-          {!live && <p className="note">Simulator: tap the map to move your position.</p>}
+        <section className="list">
+          {cables === null && !error && <p className="note">Loading…</p>}
+          {cables?.length === 0 && <p className="note">No cables yet. {role === "admin" ? "Use Manage to add one from a DXF." : "Ask an admin to add one."}</p>}
+          {rows.map(({ c, away }) => (
+            <Link key={c.id} href={`/locate/${c.id}`} className="item">
+              <b>{c.name}</b>
+              <span className="meta">
+                {c.project && `${c.project} · `}{fmt(c.lengthM)} long{away !== null && ` · about ${fmt(away)} from you`}
+              </span>
+              {typeof window !== "undefined" && isSaved(c.id) && <span className="badge">Saved on this device</span>}
+            </Link>
+          ))}
+          <Link href="/locate/demo" className="item muted"><b>Demo cable</b><span className="meta">Practise without going to site</span></Link>
         </section>
-        <Details g={g} zone={zone} start={line.pts[0]} here={position} accuracy={accuracy} weakFix={hasFix && accuracy > 5} />
       </main>
     </>
   );

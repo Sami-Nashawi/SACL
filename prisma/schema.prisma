@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Neon pooled connection (host contains -pooler), used by the running app
+  directUrl = env("DIRECT_URL")   // Neon direct connection, used by prisma db push / migrate
+}
+
+// One cable = one line from a DXF. points is [[east, north], ...] in UTM metres.
+model Cable {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  project   String   @default("")
+  zone      Int      @default(40)
+  points    Json
+  lengthM   Float
+  minE      Float
+  maxE      Float
+  minN      Float
+  maxN      Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([project])
+}

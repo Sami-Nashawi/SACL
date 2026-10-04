@@ -8,6 +8,20 @@ npm install
 npm run dev      # https://localhost:3000 (HTTPS is needed later for phone GPS and compass)
 ```
 
+## Backend: Neon + Prisma (cables are stored on the server)
+Cables live in a Neon Postgres database. People pick a cable by name; it is saved on their phone so it still opens with no signal.
+
+Pages: `/` pick a cable (search, or "Nearest to me"), `/locate/<id>` guidance, `/admin` add cables from a DXF, rename or delete (admin code only), `/login`.
+
+Setup:
+1. Create a Neon project. Copy the pooled and direct connection strings.
+2. Copy `.env.example` to `.env` and fill in `DATABASE_URL`, `DIRECT_URL`, `ACCESS_CODE`, `ADMIN_CODE`, `SESSION_SECRET`.
+3. `npm install` (this also runs `prisma generate`), then `npm run db:push` once to create the table.
+4. `npm run dev`, sign in with the admin code, open Manage and add your first cable.
+5. On Vercel, add the same five values as environment variables.
+
+Sign-in uses two shared codes for now. Per-user accounts with roles are the next step if you need to know who did what.
+
 ## Two modes
 - **Find** (far from the cable): arrow and distance, using walking direction or the compass, on a satellite or street map.
 - **Follow** (within 10 m, back to Find beyond 15 m): the cable is a line and you are a dot. It says how far to move left or right using the cable's own direction, with no compass. It flips left/right by itself if GPS shows you walking the other way. The switch is automatic, with no buttons. Test mode (no GPS, tap the map to move) is in the settings panel.
