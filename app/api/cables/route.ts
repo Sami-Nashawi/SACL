@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { currentRole } from "@/lib/session";
+import { authorize } from "@/lib/session";
 import { measure } from "@/lib/cable-types";
 
 export const dynamic = "force-dynamic";
 
 // List of cables for the picker: no points, just what is needed to show and sort them.
 export async function GET() {
+  const a = await authorize();
+  if ("error" in a) return a.error;
   const cables = await db.cable.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true, project: true, zone: true, lengthM: true, minE: true, maxE: true, minN: true, maxN: true, updatedAt: true },
@@ -21,7 +23,8 @@ const validPoints = (p: unknown): p is [number, number][] =>
 
 // Admin only: save one or many cables (a DXF often holds several).
 export async function POST(req: NextRequest) {
-  if ((await currentRole()) !== "admin") return NextResponse.json({ error: "Admin code required" }, { status: 403 });
+  const a = await authorize(true);
+  if ("error" in a) return a.error;
   const body = (await req.json().catch(() => null)) as { project?: string; zone?: number; cables?: NewCable[] } | null;
   const zone = Number(body?.zone ?? 40);
   const items = body?.cables ?? [];

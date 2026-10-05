@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import AccountMenu from "@/components/AccountMenu";
+import AdminTabs from "@/components/AdminTabs";
 import { parseDxf } from "@/lib/dxf";
 import { fetchList, forgetCable } from "@/lib/cables-client";
 import { measure, type CableSummary } from "@/lib/cable-types";
@@ -63,9 +65,11 @@ export default function Admin() {
     <>
       <header className="app">
         <Link href="/" className="back" aria-label="Back to cables">‹</Link>
-        <span className="brand title-ellipsis">Manage cables</span>
+        <span className="brand title-ellipsis">Manage</span>
+        <AccountMenu />
       </header>
       <main>
+        <AdminTabs active="cables" />
         <section className="card form">
           <h2 className="h2">Add from a DXF</h2>
           <label className="btn primary">Choose DXF file

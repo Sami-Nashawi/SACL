@@ -1,7 +1,7 @@
-// Sign-in by access code. Two codes are set in the environment:
-// ACCESS_CODE lets field users see and locate cables, ADMIN_CODE also lets you add, rename and delete them.
-// The session is a signed cookie. Uses Web Crypto only, so it also runs in middleware.
-export type Role = "user" | "admin";
+// Signed session cookie. It holds who you are (user id and role) and when it expires.
+// Uses Web Crypto only, so it also runs in middleware. The database is the final word on whether an account is still active.
+export type Role = "admin" | "engineer";
+export type Session = { id: string; role: Role };
 export const COOKIE = "cl_session";
 export const SESSION_DAYS = 30;
 
@@ -13,7 +13,7 @@ async function sign(text: string): Promise<string> {
   return btoa(String.fromCharCode(...sig)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-// Compares without stopping at the first difference, so timing does not leak the code.
+// Compares without stopping at the first difference, so timing does not leak anything.
 export function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -21,14 +21,14 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function makeToken(role: Role): Promise<string> {
-  const body = `${role}.${Date.now() + SESSION_DAYS * 86400000}`;
+export async function makeToken(s: Session): Promise<string> {
+  const body = `${s.id}.${s.role}.${Date.now() + SESSION_DAYS * 86400000}`;
   return `${body}.${await sign(body)}`;
 }
 
-export async function readToken(token?: string): Promise<Role | null> {
+export async function readToken(token?: string): Promise<Session | null> {
   if (!token || !process.env.SESSION_SECRET) return null;
-  const [role, exp, sig] = token.split(".");
-  if ((role !== "user" && role !== "admin") || !(Number(exp) > Date.now()) || !sig) return null;
-  return safeEqual(sig, await sign(`${role}.${exp}`)) ? role : null;
+  const [id, role, exp, sig] = token.split(".");
+  if (!id || (role !== "admin" && role !== "engineer") || !(Number(exp) > Date.now()) || !sig) return null;
+  return safeEqual(sig, await sign(`${id}.${role}.${exp}`)) ? { id, role } : null;
 }

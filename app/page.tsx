@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import AccountMenu from "@/components/AccountMenu";
 import { fetchList, isSaved } from "@/lib/cables-client";
 import { fromLatLon } from "@/lib/geo";
 import type { CableSummary } from "@/lib/cable-types";
@@ -11,14 +12,12 @@ export default function Home() {
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [role, setRole] = useState<string | null>(null);
   const [me, setMe] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState("");
 
   useEffect(() => {
     fetchList().then((r) => { setCables(r.cables); setOffline(r.offline); }).catch((e: Error) => setError(e.message));
-    fetch("/api/login").then((r) => r.json()).then((j: { role: string | null }) => setRole(j.role)).catch(() => {});
   }, []);
 
   const nearest = () => {
@@ -49,10 +48,7 @@ export default function Home() {
     <>
       <header className="app">
         <span className="brand">Cable Locator</span>
-        <span className="actions">
-          {role === "admin" && <Link className="btn sm" href="/admin">Manage</Link>}
-          <button className="btn sm" onClick={async () => { await fetch("/api/login", { method: "DELETE" }); location.href = "/login"; }}>Sign out</button>
-        </span>
+        <AccountMenu />
       </header>
       <main>
         <section className="ctl">
@@ -64,7 +60,7 @@ export default function Home() {
         </section>
         <section className="list">
           {cables === null && !error && <p className="note">Loading…</p>}
-          {cables?.length === 0 && <p className="note">No cables yet. {role === "admin" ? "Use Manage to add one from a DXF." : "Ask an admin to add one."}</p>}
+          {cables?.length === 0 && <p className="note">No cables yet. An administrator can add one from the account menu.</p>}
           {rows.map(({ c, away }) => (
             <Link key={c.id} href={`/locate/${c.id}`} className="item">
               <b>{c.name}</b>

@@ -128,3 +128,25 @@ header .actions { margin:0; }
 .cablerow input[type=checkbox] { width:24px; min-height:24px; accent-color:var(--you); }
 .banner.ok { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 14%, var(--card)); }
 input[type=search] { -webkit-appearance:none; }
+
+/* sign-in card and account menu */
+.auth { min-height:100dvh; display:grid; place-items:center; padding:24px 16px; }
+.authcard { width:min(420px,100%); background:var(--card); border:1px solid var(--edge); border-radius:20px; padding:28px 24px; display:grid; gap:16px; box-shadow:0 10px 36px rgba(0,0,0,.10); }
+.logo { width:48px; height:48px; border-radius:12px; background:var(--cable); display:grid; place-items:center; }
+.passrow { position:relative; display:block; }
+.passrow input { padding-right:78px; }
+.passrow .btn { position:absolute; right:4px; top:4px; min-height:40px; }
+.menu { position:relative; }
+.avatar { width:40px; height:40px; border-radius:50%; background:var(--you); color:var(--on-you); display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:.9rem; cursor:pointer; list-style:none; padding:0; min-height:40px; }
+.avatar.ghost { background:var(--edge); }
+.menu summary::after { content:none; }
+.menupanel { position:absolute; right:0; top:calc(100% + 8px); width:260px; background:var(--card); border:1px solid var(--edge); border-radius:14px; padding:8px; box-shadow:0 12px 32px rgba(0,0,0,.2); display:grid; z-index:30; }
+.menupanel a, .menupanel button { display:flex; align-items:center; min-height:44px; padding:0 12px; border:0; background:none; color:var(--ink); font:inherit; text-align:left; border-radius:10px; text-decoration:none; cursor:pointer; width:100%; }
+.menupanel a:active, .menupanel button:active { background:var(--bg); }
+.menupanel button:last-child { color:var(--bad); font-weight:700; }
+.who { padding:10px 12px 12px; display:grid; gap:3px; border-bottom:1px solid var(--edge); margin-bottom:6px; }
+.rolechip { justify-self:start; font-size:.72rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--edge); color:var(--ink); }
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--edge); }
+.tabs a { padding:12px 16px; text-decoration:none; color:var(--muted); font-weight:700; border-bottom:3px solid transparent; }
+.tabs a[aria-current=page] { color:var(--ink); border-color:var(--cable); }
+.off { color:var(--bad); font-weight:700; }
