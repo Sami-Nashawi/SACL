@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Pt } from "./engine";
 import { fromLatLon } from "./geo";
+import { MOTION_FIXES, motion, type Fix } from "./motion";
 
-type Fix = Pt & { acc: number };
 type State = { pos: Pt | null; accuracy: number; heading?: number; moving: boolean; error: string };
 
-const WINDOW = 4; // fixes averaged (about 3-4 s of walking)
+const WINDOW = 4; // fixes averaged for the position shown (about 3-4 s of walking)
 
 // Live GPS in grid coordinates. Smooths with an accuracy-weighted average and
 // derives walking direction from movement (the compass is not used).
@@ -27,15 +27,14 @@ export function useGps(zone: number, enabled: boolean): State {
         const p = fromLatLon(zone, r.coords.latitude, r.coords.longitude);
         const b = buf.current;
         b.push({ ...p, acc: Math.max(r.coords.accuracy, 1) });
-        if (b.length > WINDOW) b.shift();
+        if (b.length > MOTION_FIXES) b.shift(); // longer history for "walking or standing", shorter window for the position
+        const win = b.slice(-WINDOW);
         let w = 0, e = 0, n = 0;
-        for (const f of b) { const k = 1 / (f.acc * f.acc); w += k; e += f.e * k; n += f.n * k; }
-        const first = b[0], last = b[b.length - 1];
-        const moved = Math.hypot(last.e - first.e, last.n - first.n);
-        const moving = moved > Math.max(3, last.acc);
-        if (moving) {
-          heading.current = (((Math.atan2(last.e - first.e, last.n - first.n) * 180) / Math.PI) + 360) % 360;
-        }
+        for (const f of win) { const k = 1 / (f.acc * f.acc); w += k; e += f.e * k; n += f.n * k; }
+        const last = b[b.length - 1];
+        const m = motion(b);
+        if (m.moving) heading.current = m.heading;
+        const moving = m.moving;
         setS({ pos: { e: e / w, n: n / w }, accuracy: last.acc, heading: heading.current, moving, error: "" });
       },
       (err) => setS((o) => ({

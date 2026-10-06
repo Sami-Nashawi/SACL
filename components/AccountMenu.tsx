@@ -5,13 +5,14 @@ import { useEffect, useRef, useState } from "react";
 type Me = { id: string; name: string; email: string; role: "admin" | "engineer"; mustChangePassword: boolean };
 
 // Avatar in the header. Opens your name, role, the admin links, change password and Sign out.
-export default function AccountMenu() {
+export default function AccountMenu({ requireAdmin = false }: { requireAdmin?: boolean }) {
   const [me, setMe] = useState<Me | null>(null);
   const box = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me").then((r) => r.json()).then((j: { user: Me | null }) => {
       if (!j.user) { location.href = "/login"; return; }
+      if (requireAdmin && j.user.role !== "admin") { location.href = "/"; return; } // e.g. demoted since this page was opened
       setMe(j.user);
       // An admin set or reset this password: it must be replaced before anything else.
       if (j.user.mustChangePassword && location.pathname !== "/account") location.href = "/account";

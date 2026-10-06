@@ -2,11 +2,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AccountMenu from "@/components/AccountMenu";
-import { fetchList, isSaved } from "@/lib/cables-client";
+import { fetchList, isSavedLayout } from "@/lib/cables-client";
 import { fromLatLon } from "@/lib/geo";
-import type { CableSummary } from "@/lib/cable-types";
+import { groupLayouts, type CableSummary } from "@/lib/cable-types";
 
-// Start screen: pick a cable. You can search by name, or sort by the nearest cable to where you stand.
+const fmt = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+// Start screen: pick a layout (one drawing with all its lines). Search, or sort by the nearest to where you stand.
 export default function Home() {
   const [cables, setCables] = useState<CableSummary[] | null>(null);
   const [offline, setOffline] = useState(false);
@@ -16,9 +18,7 @@ export default function Home() {
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState("");
 
-  useEffect(() => {
-    fetchList().then((r) => { setCables(r.cables); setOffline(r.offline); }).catch((e: Error) => setError(e.message));
-  }, []);
+  useEffect(() => { fetchList().then((r) => { setCables(r.cables); setOffline(r.offline); }).catch((e: Error) => setError(e.message)); }, []);
 
   const nearest = () => {
     setLocating(true); setGpsError("");
@@ -29,20 +29,16 @@ export default function Home() {
     );
   };
 
-  // Distance from you to the cable's bounding box: quick and good enough to sort the list.
+  // Distance from you to the layout's bounding box: quick, and good enough to sort the list.
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = (cables ?? []).filter((c) => !q || `${c.name} ${c.project}`.toLowerCase().includes(q))
-      .map((c) => {
-        if (!me) return { c, away: null as number | null };
-        const p = fromLatLon(c.zone, me.lat, me.lon);
-        const dx = Math.max(c.minE - p.e, 0, p.e - c.maxE), dy = Math.max(c.minN - p.n, 0, p.n - c.maxN);
-        return { c, away: Math.hypot(dx, dy) };
-      });
+    const list = groupLayouts(cables ?? []).filter((l) => !q || l.search.includes(q)).map((l) => {
+      if (!me) return { l, away: null as number | null };
+      const p = fromLatLon(l.zone, me.lat, me.lon);
+      return { l, away: Math.hypot(Math.max(l.minE - p.e, 0, p.e - l.maxE), Math.max(l.minN - p.n, 0, p.n - l.maxN)) };
+    });
     return me ? list.sort((a, b) => a.away! - b.away!) : list;
   }, [cables, query, me]);
-
-  const fmt = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
   return (
     <>
@@ -52,25 +48,26 @@ export default function Home() {
       </header>
       <main>
         <section className="ctl">
-          <input type="search" placeholder="Search cables" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search cables" />
+          <input type="search" placeholder="Search layouts or lines" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search layouts or lines" />
           <button className="btn" onClick={nearest} disabled={locating}>{locating ? "Finding you…" : me ? "Sorted by nearest. Refresh" : "Nearest to me"}</button>
           {gpsError && <p role="alert" className="alert">{gpsError}</p>}
-          {offline && <p className="banner warn">No connection. Showing the cables saved on this device.</p>}
+          {offline && <p className="banner warn">No connection. Showing the layouts saved on this device.</p>}
           {error && <p role="alert" className="alert">{error}</p>}
         </section>
         <section className="list">
           {cables === null && !error && <p className="note">Loading…</p>}
-          {cables?.length === 0 && <p className="note">No cables yet. An administrator can add one from the account menu.</p>}
-          {rows.map(({ c, away }) => (
-            <Link key={c.id} href={`/locate/${c.id}`} className="item">
-              <b>{c.name}</b>
-              <span className="meta">
-                {c.project && `${c.project} · `}{fmt(c.lengthM)} long{away !== null && ` · about ${fmt(away)} from you`}
+          {cables?.length === 0 && <p className="note">No layouts yet. An administrator can add one from the account menu.</p>}
+          {rows.map(({ l, away }) => (
+            <Link key={l.key} href={`/locate/${encodeURIComponent(l.key)}`} className="item">
+              <b>{l.name}</b>
+              <span className="meta">{l.lines} lines · {fmt(l.lengthM)}{away !== null && ` · about ${fmt(away)} from you`}</span>
+              <span className="chips static">
+                {l.layers.map((x) => <span key={x.layer} className="chip"><span className="swatch" style={{ background: x.color }} />{x.layer || "Other"} <span className="meta">{x.count}</span></span>)}
               </span>
-              {typeof window !== "undefined" && isSaved(c.id) && <span className="badge">Saved on this device</span>}
+              {typeof window !== "undefined" && isSavedLayout(l.project) && <span className="badge">Saved on this device</span>}
             </Link>
           ))}
-          <Link href="/locate/demo" className="item muted"><b>Demo cable</b><span className="meta">Practise without going to site</span></Link>
+          <Link href="/locate/demo" className="item muted"><b>Demo layout</b><span className="meta">Three separate lines to practise with, no site visit needed</span></Link>
         </section>
       </main>
     </>

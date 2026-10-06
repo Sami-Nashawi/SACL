@@ -2,7 +2,7 @@ import { wrap360 } from "./angle";
 
 // Pure guidance engine: no browser code, so it can be tested and driven by the simulator.
 export type Pt = { e: number; n: number }; // east, north in metres
-export type Line = { name: string; pts: Pt[] };
+export type Line = { name: string; pts: Pt[]; id?: string; layer?: string; color?: string };
 export type Guidance = {
   mode: "approach" | "follow";
   distance: number; // metres from you to the nearest point on the cable
@@ -103,3 +103,6 @@ export function guide(line: Line, you: Pt, o: Options = {}): Guidance {
     bend: bendAhead(pts, hit, cum),
   };
 }
+
+// Straight distance from you to the closest point of a line (used to pick the nearest line in a layout).
+export const nearestDistance = (line: Line, p: Pt): number => nearestOnLine(line.pts, p).dist;

@@ -1,8 +1,8 @@
 import type { CableFull, CableSummary } from "./cable-types";
 
-// Browser side: fetch from the server and keep a copy on this device, so a cable you opened once still works with no signal.
+// Browser side: fetch from the server and keep a copy on this device, so a layout you opened once still works with no signal.
 const LIST_KEY = "cl:list";
-const cableKey = (id: string) => `cl:cable:${id}`;
+const layoutKey = (project: string) => `cl:layout:${project}`;
 
 const read = <T,>(key: string): T | null => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : null; } catch { return null; } };
 const write = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage full or blocked: ignore */ } };
@@ -27,17 +27,18 @@ export async function fetchList(): Promise<{ cables: CableSummary[]; offline: bo
   }
 }
 
-export async function fetchCable(id: string): Promise<{ cable: CableFull; offline: boolean }> {
+// All the lines of one layout, with their points. Saved on the device for use without signal.
+export async function fetchLayout(project: string): Promise<{ cables: CableFull[]; offline: boolean }> {
   try {
-    const { cable } = await get<{ cable: CableFull }>(`/api/cables/${id}`);
-    write(cableKey(id), cable);
-    return { cable, offline: false };
+    const { cables } = await get<{ cables: CableFull[] }>(`/api/cables?project=${encodeURIComponent(project)}`);
+    write(layoutKey(project), cables);
+    return { cables, offline: false };
   } catch {
-    const saved = read<CableFull>(cableKey(id));
-    if (saved) return { cable: saved, offline: true };
-    throw new Error("Could not load this cable. Connect once to save it on this device.");
+    const saved = read<CableFull[]>(layoutKey(project));
+    if (saved) return { cables: saved, offline: true };
+    throw new Error("Could not load this layout. Connect once to save it on this device.");
   }
 }
 
-export const isSaved = (id: string) => read(cableKey(id)) !== null;
-export const forgetCable = (id: string) => { try { localStorage.removeItem(cableKey(id)); } catch { /* ignore */ } };
+export const isSavedLayout = (project: string) => read(layoutKey(project)) !== null;
+export const forgetLayout = (project: string) => { try { localStorage.removeItem(layoutKey(project)); } catch { /* ignore */ } };

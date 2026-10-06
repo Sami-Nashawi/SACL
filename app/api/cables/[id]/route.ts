@@ -16,15 +16,18 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   const a = await authorize(true);
   if ("error" in a) return a.error;
-  const { name, project } = (await req.json().catch(() => ({}))) as { name?: string; project?: string };
-  const data: { name?: string; project?: string } = {};
+  const { name, project, layer, color } = (await req.json().catch(() => ({}))) as { name?: string; project?: string; layer?: string; color?: string };
+  const data: { name?: string; project?: string; layer?: string; color?: string } = {};
   if (name !== undefined) { if (!name.trim() || name.length > 120) return NextResponse.json({ error: "Invalid name" }, { status: 400 }); data.name = name.trim(); }
   if (project !== undefined) data.project = project.trim().slice(0, 80);
+  if (layer !== undefined) data.layer = layer.trim().slice(0, 80);
+  if (color !== undefined && /^#[0-9a-fA-F]{6}$/.test(color)) data.color = color;
   try {
     await db.cable.update({ where: { id: (await params).id }, data });
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Could not update (is the name already used?)" }, { status: 409 });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2025") return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "A line with that name already exists in this layout" }, { status: 409 });
   }
 }
 

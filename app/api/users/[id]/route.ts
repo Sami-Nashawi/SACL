@@ -22,6 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!validPassword(b.password)) return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     Object.assign(data, { passwordHash: await hashPassword(b.password), mustChangePassword: true, failedLogins: 0, lockedUntil: null });
   }
-  await db.user.update({ where: { id }, data }).catch(() => null);
+  try {
+    await db.user.update({ where: { id }, data });
+  } catch {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -5,14 +5,17 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // Neon pooled connection (host contains -pooler), used by the running app
-  directUrl = env("DIRECT_URL")   // Neon direct connection, used by prisma db push / migrate
+  directUrl = env("DIRECT_URL") // Neon direct connection, used by prisma db push / migrate
 }
 
-// One cable = one line from a DXF. points is [[east, north], ...] in UTM metres.
+// One row = one line from a DXF. A layout is all the rows with the same project name.
+// points is [[east, north], ...] in UTM metres.
 model Cable {
   id        String   @id @default(cuid())
-  name      String   @unique
-  project   String   @default("")
+  name      String
+  project   String   @default("") // the layout this line belongs to
+  layer     String   @default("") // kind of line, e.g. ETC, IRR, PW
+  color     String   @default("") // map colour like #8e44ad; empty means automatic
   zone      Int      @default(40)
   points    Json
   lengthM   Float
@@ -23,11 +26,12 @@ model Cable {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([project, name])
   @@index([project])
 }
 
 enum Role {
-  ADMIN    // adds and deletes cables, manages users
+  ADMIN // adds and deletes cables, manages users
   ENGINEER // finds cables on site
 }
 

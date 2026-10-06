@@ -150,3 +150,24 @@ input[type=search] { -webkit-appearance:none; }
 .tabs a { padding:12px 16px; text-decoration:none; color:var(--muted); font-weight:700; border-bottom:3px solid transparent; }
 .tabs a[aria-current=page] { color:var(--ink); border-color:var(--cable); }
 .off { color:var(--bad); font-weight:700; }
+
+/* layouts: many lines, colours, labels */
+.swatch { display:inline-block; width:12px; height:12px; border-radius:50%; flex:none; box-shadow:0 0 0 2px var(--card), 0 0 0 3px var(--edge); }
+.targetrow { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+.chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; }
+.chips.static { flex-wrap:wrap; overflow:visible; margin-top:4px; gap:6px; }
+.chip { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px; border:1px solid var(--edge); border-radius:999px; background:var(--card); color:var(--ink); font:inherit; font-size:.9rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+.chip[aria-pressed=false] { opacity:.45; text-decoration:line-through; }
+.chips.static .chip { min-height:28px; padding:0 10px; font-size:.8rem; cursor:inherit; }
+.nearrow { display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center; min-height:48px; padding:0 4px; border:0; border-top:1px solid var(--edge); background:none; color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.linelabel { border:0; background:transparent; box-shadow:none; padding:0; }
+.linelabel::before { display:none; }
+.linelabel span { display:inline-block; color:#fff; font-size:.75rem; font-weight:700; padding:2px 7px; border-radius:6px; border:1.5px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.45); }
+.linelabel.target span { font-size:.85rem; }
+.labels-off .linelabel { display:none; }
+.layergroup { display:grid; gap:8px; padding:10px; border:1px solid var(--edge); border-radius:12px; }
+.layerhead { display:flex; align-items:center; gap:10px; }
+.layerhead input[type=color] { width:48px; min-height:40px; padding:2px; flex:none; }
+.layerhead input:not([type=color]) { flex:1; }
+.sublist { margin-top:8px; display:grid; gap:8px; }
+.cablerow.lines { grid-template-columns:auto 1fr auto; }

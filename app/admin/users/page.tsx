@@ -61,7 +61,7 @@ export default function Users() {
       <header className="app">
         <Link href="/" className="back" aria-label="Back to cables">‹</Link>
         <span className="brand title-ellipsis">Manage</span>
-        <AccountMenu />
+        <AccountMenu requireAdmin />
       </header>
       <main>
         <AdminTabs active="users" />
@@ -98,7 +98,7 @@ export default function Users() {
               <span className="actions">
                 <button className="btn sm" onClick={() => reset(u)}>Reset password</button>
                 {u.id !== meId && <>
-                  <button className="btn sm" onClick={() => patch(u, { role: u.role === "ADMIN" ? "ENGINEER" : "ADMIN" })}>{u.role === "ADMIN" ? "Make engineer" : "Make admin"}</button>
+                  <button className="btn sm" onClick={() => patch(u, { role: u.role === "ADMIN" ? "ENGINEER" : "ADMIN" }, u.role === "ADMIN" ? `${u.name} is now an engineer.` : `${u.name} is now an administrator. They must sign out and sign in again to see the admin pages.`)}>{u.role === "ADMIN" ? "Make engineer" : "Make admin"}</button>
                   <button className={`btn sm ${u.active ? "danger" : ""}`} onClick={() => patch(u, { active: !u.active })}>{u.active ? "Disable" : "Enable"}</button>
                 </>}
               </span>
