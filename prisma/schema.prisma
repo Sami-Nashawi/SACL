@@ -38,7 +38,7 @@ enum Role {
 model User {
   id                 String    @id @default(cuid())
   name               String
-  email              String    @unique // always stored in lower case
+  fileNumber         String    @unique @map("email") // company file number, stored in capitals. The column keeps its old name "email" so existing accounts need no migration
   passwordHash       String
   role               Role      @default(ENGINEER)
   active             Boolean   @default(true)

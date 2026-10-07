@@ -1,24 +1,25 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import AccountMenu from "@/components/AccountMenu";
-import { fetchList, isSavedLayout } from "@/lib/cables-client";
+import { EmptyState, ErrorState, ListSkeleton, SlowNote, TopProgress } from "@/components/ui";
+import { cachedList, fetchList, isSavedLayout } from "@/lib/cables-client";
 import { fromLatLon } from "@/lib/geo";
-import { groupLayouts, type CableSummary } from "@/lib/cable-types";
+import { groupLayouts } from "@/lib/cable-types";
+import { useResource } from "@/lib/use-resource";
+import { useSession } from "@/components/SessionProvider";
 
 const fmt = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 // Start screen: pick a layout (one drawing with all its lines). Search, or sort by the nearest to where you stand.
+// The list shows instantly from the copy saved on this device and refreshes quietly in the background.
 export default function Home() {
-  const [cables, setCables] = useState<CableSummary[] | null>(null);
-  const [offline, setOffline] = useState(false);
-  const [error, setError] = useState("");
+  const res = useResource(fetchList, cachedList);
+  const { user } = useSession();
   const [query, setQuery] = useState("");
   const [me, setMe] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState("");
-
-  useEffect(() => { fetchList().then((r) => { setCables(r.cables); setOffline(r.offline); }).catch((e: Error) => setError(e.message)); }, []);
 
   const nearest = () => {
     setLocating(true); setGpsError("");
@@ -32,16 +33,17 @@ export default function Home() {
   // Distance from you to the layout's bounding box: quick, and good enough to sort the list.
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = groupLayouts(cables ?? []).filter((l) => !q || l.search.includes(q)).map((l) => {
+    const list = groupLayouts(res.data?.cables ?? []).filter((l) => !q || l.search.includes(q)).map((l) => {
       if (!me) return { l, away: null as number | null };
       const p = fromLatLon(l.zone, me.lat, me.lon);
       return { l, away: Math.hypot(Math.max(l.minE - p.e, 0, p.e - l.maxE), Math.max(l.minN - p.n, 0, p.n - l.maxN)) };
     });
     return me ? list.sort((a, b) => a.away! - b.away!) : list;
-  }, [cables, query, me]);
+  }, [res.data, query, me]);
 
   return (
     <>
+      <TopProgress active={res.refreshing && !!res.data} />
       <header className="app">
         <span className="brand">Cable Locator</span>
         <AccountMenu />
@@ -49,16 +51,20 @@ export default function Home() {
       <main>
         <section className="ctl">
           <input type="search" placeholder="Search layouts or lines" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search layouts or lines" />
-          <button className="btn" onClick={nearest} disabled={locating}>{locating ? "Finding you…" : me ? "Sorted by nearest. Refresh" : "Nearest to me"}</button>
+          <button className={`btn${locating ? " busy" : ""}`} onClick={nearest} disabled={locating}>{me ? "Sorted by nearest. Refresh" : "Nearest to me"}</button>
           {gpsError && <p role="alert" className="alert">{gpsError}</p>}
-          {offline && <p className="banner warn">No connection. Showing the layouts saved on this device.</p>}
-          {error && <p role="alert" className="alert">{error}</p>}
+          {res.data?.offline && <p className="banner warn">No connection. Showing the layouts saved on this device.</p>}
         </section>
         <section className="list">
-          {cables === null && !error && <p className="note">Loading…</p>}
-          {cables?.length === 0 && <p className="note">No layouts yet. An administrator can add one from the account menu.</p>}
+          {!res.data && !res.error && <><ListSkeleton /><SlowNote show={res.slow} /></>}
+          {!res.data && res.error && <ErrorState message={res.error} onRetry={res.reload} />}
+          {res.data && res.data.cables.length === 0 && (
+            <EmptyState title="No layouts yet" text={user?.role === "admin" ? "Add your first layout from a DXF drawing." : "An administrator needs to add a layout first."}
+              action={user?.role === "admin" ? <Link className="btn primary" href="/admin">Add a layout</Link> : undefined} />
+          )}
+          {res.data && res.data.cables.length > 0 && rows.length === 0 && <p className="note">Nothing matches "{query}".</p>}
           {rows.map(({ l, away }) => (
-            <Link key={l.key} href={`/locate/${encodeURIComponent(l.key)}`} className="item">
+            <Link key={l.key} href={`/locate/${encodeURIComponent(l.key)}`} className="item fade">
               <b>{l.name}</b>
               <span className="meta">{l.lines} lines · {fmt(l.lengthM)}{away !== null && ` · about ${fmt(away)} from you`}</span>
               <span className="chips static">
@@ -67,7 +73,7 @@ export default function Home() {
               {typeof window !== "undefined" && isSavedLayout(l.project) && <span className="badge">Saved on this device</span>}
             </Link>
           ))}
-          <Link href="/locate/demo" className="item muted"><b>Demo layout</b><span className="meta">Three separate lines to practise with, no site visit needed</span></Link>
+          {res.data && <Link href="/locate/demo" className="item muted"><b>Demo layout</b><span className="meta">Three separate lines to practise with, no site visit needed</span></Link>}
         </section>
       </main>
     </>

@@ -1,14 +1,19 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import AccountMenu from "@/components/AccountMenu";
 import AdminTabs from "@/components/AdminTabs";
 import { parseDxf } from "@/lib/dxf";
 import { colorFor } from "@/lib/colors";
-import { fetchList, forgetLayout } from "@/lib/cables-client";
+import { orderAlong, partName } from "@/lib/order";
+import PlanPreview from "@/components/PlanPreview";
+import { apiFetch } from "@/lib/api";
+import { cachedList, fetchList, forgetLayout } from "@/lib/cables-client";
+import { useResource } from "@/lib/use-resource";
+import { EmptyState, ErrorState, ListSkeleton, SlowNote, TopProgress } from "@/components/ui";
 import { groupLayouts, layerColors, measure, type CableSummary } from "@/lib/cable-types";
 
-type Row = { include: boolean; name: string; src: string; points: [number, number][] };
+type Row = { include: boolean; name: string; src: string; points: [number, number][]; n: number; total: number; custom: boolean };
 type Meta = Record<string, { label: string; color: string }>; // per DXF layer: the name and colour of that kind of line
 const fmt = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`);
 const errorOf = async (res: Response | null, fallback: string) =>
@@ -20,13 +25,14 @@ export default function Admin() {
   const [meta, setMeta] = useState<Meta>({});
   const [layout, setLayout] = useState("");
   const [zone, setZone] = useState(40);
-  const [cables, setCables] = useState<CableSummary[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<number | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const reload = useCallback(() => { fetchList().then((r) => setCables(r.cables)).catch(() => {}); }, []);
-  useEffect(reload, [reload]);
+  const res = useResource(fetchList, cachedList);
+  const cables = useMemo(() => res.data?.cables ?? [], [res.data]);
+  const reload = res.reload;
   const layouts = useMemo(() => groupLayouts(cables), [cables]);
 
   const onFile = async (file?: File) => {
@@ -37,7 +43,12 @@ export default function Admin() {
       if (!lines.length) return setMsg({ ok: false, text: "No lines found. Save the DWG as DXF (2018 ASCII) and make sure the lines are polylines." });
       const srcs = [...new Set(lines.map((l) => l.layer ?? "0"))];
       setMeta(Object.fromEntries(srcs.map((s, i) => [s, { label: s, color: colorFor(s, i) }])));
-      setRows(lines.map((l) => ({ include: true, name: l.name, src: l.layer ?? "0", points: l.pts.map((p): [number, number] => [p.e, p.n]) })));
+      // Lines of one kind are numbered along the road, not in drawing order: "part 1" is at one end, the last part at the other.
+      setRows(srcs.flatMap((s) => {
+        const group = orderAlong(lines.filter((l) => (l.layer ?? "0") === s));
+        return group.map((l, k): Row => ({ include: true, name: partName(s, k + 1, group.length), src: s, n: k + 1, total: group.length, custom: false, points: l.pts.map((p): [number, number] => [p.e, p.n]) }));
+      }));
+      setSelected(null);
       if (!layout) setLayout(file.name.replace(/\.dxf$/i, ""));
     } catch {
       setMsg({ ok: false, text: "Could not read this DXF. Save it as ASCII DXF (AutoCAD 2018) and try again." });
@@ -46,13 +57,18 @@ export default function Admin() {
 
   const update = (i: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setMetaFor = (src: string, patch: Partial<Meta[string]>) => setMeta((m) => ({ ...m, [src]: { ...m[src], ...patch } }));
+  // Rename a whole kind once ("Irrigation 600 mm") and every part that was not renamed by hand follows it.
+  const setLabel = (src: string, label: string) => {
+    setMetaFor(src, { label });
+    setRows((rs) => rs.map((r) => (r.src === src && !r.custom ? { ...r, name: partName(label, r.n, r.total) } : r)));
+  };
   const chosen = rows.filter((r) => r.include);
   const looksWrong = chosen.some((r) => r.points.some(([e, n]) => e < 100000 || e > 900000 || n < 0 || n > 10000000));
   const srcs = Object.keys(meta);
 
   const save = async () => {
     setBusy(true); setMsg(null);
-    const res = await fetch("/api/cables", { method: "POST", headers: { "Content-Type": "application/json" },
+    const res = await apiFetch("/api/cables", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project: layout, zone, cables: chosen.map((r) => ({ name: r.name, layer: meta[r.src].label, color: meta[r.src].color, points: r.points })) }) }).catch(() => null);
     setBusy(false);
     if (res?.ok) { const j = (await res.json()) as { saved: number }; setMsg({ ok: true, text: `Saved ${j.saved} lines into "${layout}".` }); setRows([]); setMeta({}); forgetLayout(layout); reload(); }
@@ -60,7 +76,7 @@ export default function Admin() {
   };
 
   const send = async (url: string, method: string, body?: unknown) => {
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).catch(() => null);
+    const res = await apiFetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).catch(() => null);
     if (res?.ok) reload(); else setMsg({ ok: false, text: await errorOf(res, "Something went wrong") });
     return !!res?.ok;
   };
@@ -90,9 +106,10 @@ export default function Admin() {
       <header className="app">
         <Link href="/" className="back" aria-label="Back to layouts">‹</Link>
         <span className="brand title-ellipsis">Manage</span>
-        <AccountMenu requireAdmin />
+        <AccountMenu />
       </header>
       <main>
+        <TopProgress active={res.refreshing && !!res.data} />
         <AdminTabs active="cables" />
         <section className="card form">
           <h2 className="h2">Add a layout from a DXF</h2>
@@ -110,24 +127,25 @@ export default function Admin() {
                   <input type="number" inputMode="numeric" min={1} max={60} value={zone} onChange={(e) => setZone(+e.target.value || 40)} />
                 </label>
               </div>
-              <p className="note">{rows.length} lines found in {srcs.length} kinds. Name each kind and pick its colour, then untick or rename single lines. Using an existing layout name adds to it.</p>
+              <p className="note">{rows.length} lines found in {srcs.length} kinds. Name each kind (for example "Irrigation 600 mm") and pick its colour; the parts are numbered along the road and follow that name. Tap a line in the plan or a row to see which one it is, then untick or rename single parts. Using an existing layout name adds to it.</p>
               {looksWrong && <p className="banner warn">Some coordinates do not look like UTM metres. Check the drawing's coordinate system before saving.</p>}
+              <PlanPreview rows={rows} meta={meta} selected={selected} onSelect={setSelected} />
               {srcs.map((src) => (
                 <div key={src} className="layergroup">
                   <div className="layerhead">
                     <input type="color" value={meta[src].color} onChange={(e) => setMetaFor(src, { color: e.target.value })} aria-label={`Colour for ${src}`} />
-                    <input value={meta[src].label} onChange={(e) => setMetaFor(src, { label: e.target.value })} aria-label={`Name for kind ${src}`} />
+                    <input value={meta[src].label} onChange={(e) => setLabel(src, e.target.value)} aria-label={`Name for kind ${src}`} />
                   </div>
                   {rows.map((r, i) => r.src !== src ? null : (
-                    <div key={i} className="cablerow">
+                    <div key={i} className={`cablerow${selected === i ? " selected" : ""}`} onClick={() => setSelected(i)}>
                       <input type="checkbox" checked={r.include} aria-label={`Include ${r.name}`} onChange={(e) => update(i, { include: e.target.checked })} />
-                      <input value={r.name} onChange={(e) => update(i, { name: e.target.value })} aria-label="Line name" />
+                      <input value={r.name} onChange={(e) => update(i, { name: e.target.value, custom: true })} onFocus={() => setSelected(i)} aria-label="Line name" />
                       <span className="meta">{fmt(measure(r.points).lengthM)}</span>
                     </div>
                   ))}
                 </div>
               ))}
-              <button className="btn primary" disabled={busy || !layout.trim() || !chosen.length || chosen.some((r) => !r.name.trim())} onClick={save}>
+              <button className={`btn primary${busy ? " busy" : ""}`} disabled={busy || !layout.trim() || !chosen.length || chosen.some((r) => !r.name.trim())} onClick={save}>
                 {busy ? "Saving…" : `Save ${chosen.length} line${chosen.length === 1 ? "" : "s"}`}
               </button>
             </>
@@ -135,7 +153,10 @@ export default function Admin() {
           {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "banner ok" : "alert"}>{msg.text}</p>}
         </section>
         <section className="list">
-          <h2 className="h2">Saved layouts ({layouts.length})</h2>
+          <h2 className="h2">Saved layouts{res.data ? ` (${layouts.length})` : ""}</h2>
+          {!res.data && !res.error && <><ListSkeleton rows={2} /><SlowNote show={res.slow} /></>}
+          {!res.data && res.error && <ErrorState message={res.error} onRetry={reload} />}
+          {res.data && layouts.length === 0 && <EmptyState title="No layouts yet" text="Choose a DXF above to add your first layout." />}
           {layouts.map((l) => {
             const mine = cables.filter((c) => c.project === l.project);
             const colors = layerColors(mine);

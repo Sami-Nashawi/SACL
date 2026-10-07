@@ -1,29 +1,33 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import Locate from "@/components/Locate";
-import { fetchLayout } from "@/lib/cables-client";
-import { projectOf, toLines, type CableFull } from "@/lib/cable-types";
+import { ErrorState, LocateSkeleton, SlowNote, TopProgress } from "@/components/ui";
+import { cachedLayout, fetchLayout } from "@/lib/cables-client";
+import { projectOf, toLines } from "@/lib/cable-types";
 import { DEMO_LINES, DEMO_START_POSITION } from "@/lib/demo";
+import { useResource } from "@/lib/use-resource";
 
-// Loads one layout (from the server, or from this device if there is no signal), then shows the locate screen.
+// Opens a layout. A copy saved on this device opens instantly (even with no signal) and refreshes in the background.
 export default function LocatePage() {
   const raw = useParams<{ layout: string }>().layout;
   const key = (() => { try { return decodeURIComponent(raw); } catch { return raw; } })();
-  const [data, setData] = useState<{ cables: CableFull[]; offline: boolean } | null>(null);
-  const [error, setError] = useState("");
+  const project = projectOf(key);
+  const demo = key === "demo";
+  const res = useResource(() => fetchLayout(project), () => cachedLayout(project), key);
+  const lines = useMemo(() => (res.data ? toLines(res.data.cables) : []), [res.data]);
+  const title = project || "Ungrouped lines";
 
-  useEffect(() => {
-    if (key === "demo") return;
-    fetchLayout(projectOf(key)).then(setData).catch((e: Error) => setError(e.message));
-  }, [key]);
-
-  if (key === "demo") return <Locate title="Demo layout" lines={DEMO_LINES} zone={40} offline={false} testStart={DEMO_START_POSITION} />;
-  if (data?.cables.length) return <Locate title={projectOf(key) || "Ungrouped lines"} lines={toLines(data.cables)} zone={data.cables[0].zone} offline={data.offline} />;
-  return (
-    <main className="narrow">
-      {error || data ? <><p role="alert" className="alert">{error || "This layout has no lines."}</p><Link className="btn" href="/">Back to layouts</Link></> : <p className="note">Loading layout…</p>}
-    </main>
-  );
+  if (demo) return <Locate title="Demo layout" lines={DEMO_LINES} zone={40} offline={false} testStart={DEMO_START_POSITION} />;
+  if (res.data?.cables.length) return <><TopProgress active={res.refreshing} /><Locate title={title} lines={lines} zone={res.data.cables[0].zone} offline={res.data.offline} /></>;
+  if (res.data || res.error) {
+    return (
+      <main className="narrow">
+        <ErrorState message={res.error || "This layout has no lines."} onRetry={res.error ? res.reload : undefined} />
+        <Link className="btn" href="/">Back to layouts</Link>
+      </main>
+    );
+  }
+  return <><LocateSkeleton title={project ? title : undefined} /><SlowNote show={res.slow} /></>;
 }

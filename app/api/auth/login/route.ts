@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { hashPassword, normalizeFileNumber, verifyPassword } from "@/lib/password";
 import { startSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 const MAX_FAILS = 5, LOCK_MINUTES = 15;
 
 export async function POST(req: NextRequest) {
-  const b = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
-  const email = (b.email ?? "").trim().toLowerCase(), password = b.password ?? "";
-  const bad = () => NextResponse.json({ error: "Wrong email or password" }, { status: 401 });
-  if (!email || !password) return bad();
+  const b = (await req.json().catch(() => ({}))) as { fileNumber?: string; password?: string };
+  const fileNumber = normalizeFileNumber(b.fileNumber ?? ""), password = b.password ?? "";
+  const bad = () => NextResponse.json({ error: "Wrong file number or password" }, { status: 401 });
+  if (!fileNumber || !password) return bad();
 
-  const user = await db.user.findUnique({ where: { email } });
+  const user = await db.user.findFirst({ where: { fileNumber: { equals: fileNumber, mode: "insensitive" } } });
   if (user?.lockedUntil && user.lockedUntil > new Date()) {
     return NextResponse.json({ error: `Too many wrong attempts. Try again in ${LOCK_MINUTES} minutes.` }, { status: 429 });
   }
-  // Unknown email: still do the hashing work, so the response time does not reveal which emails exist.
+  // Unknown file number: still do the hashing work, so the response time does not reveal which file numbers exist.
   const ok = user ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
   if (!user || !ok) {
     if (user) {

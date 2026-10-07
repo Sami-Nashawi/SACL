@@ -13,7 +13,7 @@ Cables and users live in a Neon Postgres database. People pick a cable by name; 
 
 Pages: `/` pick a layout (search, or "Nearest to me"), `/locate/<layout>` guidance, `/admin` add, rename and delete layouts and lines, `/admin/users` accounts and roles, `/account` change password, `/login`.
 
-Sign-in uses real accounts (email and password). Roles: Administrator (manage cables and users) and Engineer (find cables). Passwords are stored as salted scrypt hashes, 5 wrong attempts lock an account for 15 minutes, and disabling an account takes effect immediately.
+Sign-in uses real accounts: the company file number and a password. Roles: Administrator (manage cables and users) and Engineer (find cables). Passwords are stored as salted scrypt hashes, 5 wrong attempts lock an account for 15 minutes, and disabling an account takes effect immediately.
 
 Setup:
 1. Create a Neon project and copy the pooled and direct connection strings.
@@ -58,6 +58,6 @@ Model space only. One polyline per cable, each on its own layer (layer name beco
 - `lib/demo.ts` demo cable
 
 ## Tests
-- `npm test` runs 40 fast checks: left/right and distance maths, awkward lines, DXF reading (including `tests/fixtures/ETISALAT_cables.dxf`), colours, walking-or-standing detection with simulated GPS noise, and the whole locate screen driven by simulated GPS (nearest-line choice, 3 m rule, lock, hide kinds, Find/Follow at 10/15 m, direction flip).
-- `npm run test:e2e` builds the app and runs 146 checks over HTTP against an in-memory database (no Neon needed): sign-in, lockout, roles, disabled accounts, forged cookies, every API and page.
+- `npm test` runs fast checks: left/right and distance maths, awkward lines, DXF reading (including `tests/fixtures/ETISALAT_cables.dxf`), colours, walking-or-standing detection with simulated GPS noise, and the whole locate screen driven by simulated GPS (nearest-line choice, 3 m rule, lock, hide kinds, Find/Follow at 10/15 m, direction flip).
+- `npm run test:e2e` builds the app and runs about 170 checks over HTTP against an in-memory database (no Neon needed): sign-in, lockout, roles, disabled accounts, forged cookies, every API and page.
 - These do not talk to a real Neon database. After deploying, create the first admin, add a layout from a DXF, and open it on a phone.

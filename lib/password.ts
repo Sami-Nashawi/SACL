@@ -17,5 +17,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-export const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 160;
+// A company file number: 2 to 24 letters, digits or - _ . / with no spaces (for example 10234 or CGC-1023). Stored in capitals.
+export const normalizeFileNumber = (s: string) => s.trim().toUpperCase();
+export const validFileNumber = (s: string) => /^[A-Z0-9][A-Z0-9._\-/]{1,23}$/.test(s);
 export const validPassword = (p: string) => p.length >= 8 && p.length <= 200;

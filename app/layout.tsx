@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
+import { COOKIE, readToken } from "@/lib/auth";
+import { SessionProvider } from "@/components/SessionProvider";
 
 export const metadata: Metadata = {
   title: "Cable Locator",
@@ -15,10 +18,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read from the signed cookie only: no database call, so the page is never held up by it.
+  const s = await readToken((await cookies()).get(COOKIE)?.value);
+  const user = s ? { id: s.id, name: s.name, fileNumber: s.fileNumber, role: s.role, mustChangePassword: s.mc } : null;
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><SessionProvider user={user}>{children}</SessionProvider></body>
     </html>
   );
 }

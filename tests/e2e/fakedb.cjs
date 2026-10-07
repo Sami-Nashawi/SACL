@@ -5,11 +5,18 @@ const newId = () => "c" + crypto.randomBytes(10).toString("hex");
 const err = (code, msg) => Object.assign(new Error(msg), { code });
 const store = { user: [], cable: [] };
 const cfg = {
-  user: { defaults: () => ({ role: "ENGINEER", active: true, mustChangePassword: false, failedLogins: 0, lockedUntil: null, lastLoginAt: null }), unique: [["email"]] },
+  user: { defaults: () => ({ role: "ENGINEER", active: true, mustChangePassword: false, failedLogins: 0, lockedUntil: null, lastLoginAt: null }), unique: [["fileNumber"]] },
   cable: { defaults: () => ({ project: "", layer: "", color: "", zone: 40 }), unique: [["project", "name"]] },
 };
-const matches = (row, where) => !where || Object.entries(where).every(([k, v]) =>
-  v && typeof v === "object" && !(v instanceof Date) ? ("in" in v ? v.in.includes(row[k]) : false) : row[k] === v);
+const matches = (row, where) => !where || Object.entries(where).every(([k, v]) => {
+  if (k === "NOT") return !matches(row, v);
+  if (v && typeof v === "object" && !(v instanceof Date)) {
+    if ("in" in v) return v.in.includes(row[k]);
+    if ("equals" in v) return v.mode === "insensitive" ? String(row[k]).toLowerCase() === String(v.equals).toLowerCase() : row[k] === v.equals;
+    return false;
+  }
+  return row[k] === v;
+});
 const clash = (name, rows, row, ignore) => cfg[name].unique.some((cols) => rows.some((r) => r !== ignore && cols.every((c) => r[c] === row[c])));
 const sorter = (orderBy) => { const list = [].concat(orderBy || []); return (a, b) => { for (const o of list) { const [k, d] = Object.entries(o)[0]; if (a[k] < b[k]) return d === "asc" ? -1 : 1; if (a[k] > b[k]) return d === "asc" ? 1 : -1; } return 0; }; };
 const pick = (row, select) => { if (!select) return { ...row }; const o = {}; for (const k of Object.keys(select)) if (select[k]) o[k] = row[k]; return o; };
@@ -17,6 +24,7 @@ const lazy = (fn) => ({ then: (res, rej) => { try { Promise.resolve(fn()).then(r
 
 const model = (name) => ({
   findMany: (a = {}) => lazy(() => store[name].filter((r) => matches(r, a.where)).sort(sorter(a.orderBy)).map((r) => pick(r, a.select))),
+  findFirst: (a) => lazy(() => { const r = store[name].find((x) => matches(x, a.where)); return r ? { ...r } : null; }),
   findUnique: (a) => lazy(() => { const r = store[name].find((x) => matches(x, a.where)); return r ? { ...r } : null; }),
   count: () => lazy(() => store[name].length),
   create: (a) => lazy(() => {

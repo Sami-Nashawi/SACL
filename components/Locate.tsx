@@ -88,6 +88,12 @@ export default function Locate({ title, lines, zone, offline, testStart }: Props
   const state = waiting ? "wait" : !follow ? "far" : g.side === "on" ? "on" : "near";
   const others = ranks.filter((r) => keyOf(r.line) !== targetKey).slice(0, 3)
     .map((r) => ({ id: keyOf(r.line), name: r.line.name, layer: r.line.layer ?? "", color: r.line.color ?? "#888", d: r.d }));
+  // Several separate parts of one kind (for example 600 mm irrigation in different roads): focus on that kind, and when
+  // this part ends, point to the next part of the same kind instead of letting a different utility take over.
+  const allKinds = useMemo(() => [...new Set(lines.map((l) => l.layer ?? ""))], [lines]);
+  const sameKindNext = ranks.find((r) => keyOf(r.line) !== targetKey && (r.line.layer ?? "") === (line.layer ?? ""));
+  const endingSoon = g.beyond ? g.beyond === (forward ? "end" : "start") : g.remaining < 10;
+  const next = target && sameKindNext && endingSoon ? { id: keyOf(sameKindNext.line), name: sameKindNext.line.name, g: guide(sameKindNext.line, position, { forward: true }) } : null;
   const toggleLayer = (layer: string) => setHidden((h) => (h.includes(layer) ? h.filter((x) => x !== layer) : [...h, layer]));
 
   return (
@@ -115,12 +121,21 @@ export default function Locate({ title, lines, zone, offline, testStart }: Props
               <b>{line.name}</b>
               {line.layer && line.layer !== line.name && <span className="rolechip">{line.layer}</span>}
               {pinned ? <button className="btn sm" onClick={() => setPinned(null)}>Locked. Tap for auto</button> : <span className="rolechip">Auto</span>}
+              {allKinds.length > 1 && (hidden.length === 0
+                ? <button className="btn sm" onClick={() => setHidden(allKinds.filter((k) => k !== (line.layer ?? "")))}>Only {line.layer || "this kind"}</button>
+                : <button className="btn sm" onClick={() => setHidden([])}>Show all kinds</button>)}
             </div>
             <p className="modetag">{follow ? "FOLLOW" : "FIND"}</p>
             {follow
               ? <LaneView side={g.side} distance={g.distance} accuracy={accuracy} />
               : <CompassArrow bearing={g.bearing} facing={facing} source={source} status={compass.status} onEnable={compass.request} />}
             <Headline g={g} waiting={waiting} accuracy={accuracy} follow={follow} />
+            {next && (
+              <div className="banner bend nextpart">
+                <span>{g.beyond ? "This part ends here." : `This part ends in ${g.remaining.toFixed(0)} m.`} Next: <b>{next.name}</b>, {next.g.distance.toFixed(0)} m {next.g.cardinal}.</span>
+                <button className="btn sm" onClick={() => setPinned(next.id)}>Go to it</button>
+              </div>
+            )}
             {follow && <p className="note">Walking {forward ? "start to end" : "end to start"}. Flips by itself if you turn around.</p>}
           </section>
         ) : <section className="card"><p className="note">All kinds of lines are hidden. Turn one back on above.</p></section>}
